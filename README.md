@@ -6,11 +6,22 @@ I prefer simple tablines and statuslines. I have been using [lightline.vim](http
 
 ## Installation
 
-1. Download [kissline.lua](./lua/kissline.lua) and load the configuration (preferably load it last). e.g. `require("xxxx.kissline")`.
+1. Download [kissline.lua](./lua/kissline.lua) and load the configuration (preferably load it last). e.g. `require("xxx.kissline")`.
 
 Or
 
-1. Fork this project, modify it and then use a plugin manager to install it. e.g. Lazy.nvim `"<your kissline project>"`.
+1. Fork this project, modify it and then use a plugin manager to install it.
+
+    e.g. Lazy.nvim:
+
+    ```lua
+      {
+        "<your name>/kissline.nvim",
+        config = function()
+          require("kissline")
+        end,
+      },
+    ```
 
 ## Examples (forks)
 
@@ -20,5 +31,5 @@ Or
 
 deus theme
 
-![statusline]()
-![tabline]()
+![statusline](https://github.com/JohanChane/kissline.nvim/assets/26107760/4a3984da-9d63-486c-bcac-94a8a0f66de3)
+![tabline](https://github.com/JohanChane/kissline.nvim/assets/26107760/ca563c2c-397f-4574-b723-6edff0139734)
