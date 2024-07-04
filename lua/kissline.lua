@@ -13,12 +13,12 @@ local kiss_sts_line_higroups = {
 -- active
 local section_hl_values = {
   -- deus theme. See [colorscheme](https://github.com/itchyny/lightline.vim/tree/master/autoload/lightline/colorscheme)
-  mode     = {fg = "#292c33", bg = '#98c379', ctermfg = 235, ctermbg = 114, bold = true},
-  file1    = {fg = "#98c379", bg = '#292c33', ctermfg = 114, ctermbg = 235},
-  space    = {fg = "#98c379", bg = '#292c33', ctermfg = 114, ctermbg = 235},
-  file2    = {fg = "#98c379", bg = '#292c33', ctermfg = 114, ctermbg = 235},
+  mode     = {fg = '#292c33', bg = '#98c379', ctermfg = 235, ctermbg = 114, bold = true},
+  file1    = {fg = '#98c379', bg = '#292c33', ctermfg = 114, ctermbg = 235},
+  space    = {fg = '#98c379', bg = '#292c33', ctermfg = 114, ctermbg = 235},
+  file2    = {fg = '#98c379', bg = '#292c33', ctermfg = 114, ctermbg = 235},
   percent  = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 114, ctermbg = 236},
-  lineinfo = {fg = "#292c33", bg = '#98c379', ctermfg = 235, ctermbg = 114},
+  lineinfo = {fg = '#292c33', bg = '#98c379', ctermfg = 235, ctermbg = 114},
 }
 
 vim.api.nvim_set_hl(0, kiss_sts_line_higroups.mode,     section_hl_values.mode)
@@ -39,11 +39,11 @@ local kiss_sts_line_nc_higroups = {
 
 -- inactive
 local section_hl_nc_values = {
-  file1    = {fg = "#abb2bf", bg = '#3e4452', ctermfg = 243, ctermbg = 238},
-  space    = {fg = "#abb2bf", bg = '#3e4452', ctermfg = 243, ctermbg = 238},
-  file2    = {fg = "#abb2bf", bg = '#3e4452', ctermfg = 243, ctermbg = 238},
+  file1    = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 243, ctermbg = 238},
+  space    = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 243, ctermbg = 238},
+  file2    = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 243, ctermbg = 238},
   percent  = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 243, ctermbg = 238},
-  lineinfo = {fg = "#abb2bf", bg = '#3e4452', ctermfg = 243, ctermbg = 238},
+  lineinfo = {fg = '#abb2bf', bg = '#3e4452', ctermfg = 243, ctermbg = 238},
 }
 
 vim.api.nvim_set_hl(0, kiss_sts_line_nc_higroups.file1,    section_hl_nc_values.file1)
@@ -74,7 +74,9 @@ local function kiss_line_helper(is_active)
 
   local bufnr = vim.api.nvim_win_get_buf(winid)
   local bufname = vim.fn.bufname(bufnr)
-  local filepath = bufname == '' and '[No Name]' or vim.fn.fnamemodify(vim.fn.expand('#' .. bufnr .. ':p'), ':~')
+  local is_named_buf = bufname ~= ''
+  local fullpath = vim.fn.expand(vim.fn.expand('#' .. bufnr .. ':p'))
+  local filepath = is_named_buf and vim.fn.fnamemodify(fullpath, ':~') or '[No Name]'
   if #filepath > 80 then
     filepath = vim.fn.pathshorten(filepath, 2)
   end
@@ -147,7 +149,7 @@ vim.api.nvim_create_autocmd({'WinLeave'}, {
 vim.o.showtabline = 1
 
 -- deus theme
-vim.api.nvim_set_hl(0, 'TabLineSel', {fg = "#292c33", bg = '#98C379', ctermfg = 235, ctermbg = 114})
+vim.api.nvim_set_hl(0, 'TabLineSel', {fg = '#292c33', bg = '#98C379', ctermfg = 235, ctermbg = 114})
 
 local function kiss_tab_sel(n)
   local buflist = vim.fn.tabpagebuflist(n)
