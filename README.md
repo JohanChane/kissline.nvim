@@ -32,4 +32,9 @@ Or
 deus theme
 
 ![statusline](https://github.com/JohanChane/kissline.nvim/assets/26107760/4a3984da-9d63-486c-bcac-94a8a0f66de3)
+
 ![tabline](https://github.com/JohanChane/kissline.nvim/assets/26107760/ca563c2c-397f-4574-b723-6edff0139734)
+
+### [JohanChane/mykissline.nvim](https://github.com/JohanChane/mykissline.nvim)
+
+the `kissline.nvim` I am using.
