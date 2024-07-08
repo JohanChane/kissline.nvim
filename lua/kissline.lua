@@ -52,15 +52,27 @@ vim.api.nvim_set_hl(0, kiss_sts_line_nc_higroups.file2,    section_hl_nc_values.
 vim.api.nvim_set_hl(0, kiss_sts_line_nc_higroups.percent,  section_hl_nc_values.percent)
 vim.api.nvim_set_hl(0, kiss_sts_line_nc_higroups.lineinfo, section_hl_nc_values.lineinfo)
 
+-- statusline cache: Save the statusline information that only updates when certain events occur. e.g. WinEnter, BufEnter, ...
+local sl_cache = {}
+
+local function update_sl_cache()
+  local bufname = vim.fn.bufname()
+  local is_named_buf = bufname ~= ''
+
+  local fullpath = vim.fn.expand(vim.fn.expand('%:p'))
+  local filepath = is_named_buf and vim.fn.fnamemodify(fullpath, ':~') or '[No Name]'
+  if #filepath > 80 then
+    filepath = vim.fn.pathshorten(filepath, 2)
+  end
+  sl_cache.filepath = filepath
+end
+
 local function kiss_line_helper(is_active)
   local hl_groups
-  local winid
   if is_active then
     hl_groups = kiss_sts_line_higroups
-    winid = vim.fn.win_getid()
   else
     hl_groups = kiss_sts_line_nc_higroups
-    winid = vim.fn.win_getid(vim.fn.winnr('#'))
   end
 
   local mode_section
@@ -72,32 +84,24 @@ local function kiss_line_helper(is_active)
     })
   end
 
-  local bufnr = vim.api.nvim_win_get_buf(winid)
-  local bufname = vim.fn.bufname(bufnr)
-  local is_named_buf = bufname ~= ''
-  local fullpath = vim.fn.expand(vim.fn.expand('#' .. bufnr .. ':p'))
-  local filepath = is_named_buf and vim.fn.fnamemodify(fullpath, ':~') or '[No Name]'
-  if #filepath > 80 then
-    filepath = vim.fn.pathshorten(filepath, 2)
-  end
   local file_section1 = table.concat({
     ' ',
-    vim.bo[bufnr].readonly and '[RO] ' or '',
-    filepath, ' ',
-    vim.bo[bufnr].modified and '[+] ' or '',
+    vim.bo.readonly and '[RO] ' or '',
+    sl_cache.filepath, ' ',
+    vim.bo.modified and '[+] ' or '',
   })
 
   local file_section2 = table.concat({
-    vim.bo[bufnr].filetype, vim.bo[bufnr].filetype ~= '' and '|' or '',
-    vim.bo[bufnr].fileencoding, vim.bo[bufnr].fileencoding ~= '' and '|' or '',
-    vim.bo[bufnr].fileformat, ' ',
+    vim.bo.filetype, vim.bo.filetype ~= '' and '|' or '',
+    vim.bo.fileencoding, vim.bo.fileencoding ~= '' and '|' or '',
+    vim.bo.fileformat, ' ',
   })
 
   local percent_section = table.concat({
-    string.format('%3d%%%%', math.floor((vim.fn.line('.', winid) / vim.fn.line('$', winid)) * 100)), ' ',
+    string.format('%3d%%%%', math.floor((vim.fn.line('.') / vim.fn.line('$')) * 100)), ' ',
   })
   local lineinfo_section = table.concat({
-    string.format('%4d:%-3d', vim.fn.line('.', winid), vim.fn.col('.', winid))
+    string.format('%4d:%-3d', vim.fn.line('.'), vim.fn.col('.'))
   })
 
   local statusline
@@ -127,22 +131,24 @@ function KissLine()
   return kiss_line_helper(true)
 end
 
-function KissLineNc()
-  return kiss_line_helper(false)
-end
-
 local group = vim.api.nvim_create_augroup('KissLine', { clear = true })
 
 vim.api.nvim_create_autocmd({'WinEnter', 'BufEnter'}, {
     group = group,
     pattern = '*',
-    command = 'setlocal statusline=%!v:lua.KissLine()',
+    callback = function(_)
+      update_sl_cache()
+      vim.wo.statusline = '%!v:lua.KissLine()'
+    end,
 })
 
 vim.api.nvim_create_autocmd({'WinLeave'}, {
     group = group,
     pattern = '*',
-    command = 'setlocal statusline=%!v:lua.KissLineNc()',
+    callback = function(_)
+      local statusline = kiss_line_helper(false)
+      vim.wo.statusline = statusline
+    end,
 })
 
 -- ## TabLine
