@@ -127,7 +127,7 @@ local function kiss_line_helper(is_active)
   return statusline
 end
 
-function KissLine()
+_G.KissLine = function()
   return kiss_line_helper(true)
 end
 
@@ -152,6 +152,7 @@ vim.api.nvim_create_autocmd({'WinLeave'}, {
 })
 
 -- ## TabLine
+---[[
 vim.o.showtabline = 1
 
 -- deus theme
@@ -175,14 +176,15 @@ local function kiss_tab_sel(n)
   return bufname
 end
 
-function KissTabLine()
+_G.KissTabLine = function()
   local s = ''
   local tabnr = vim.fn.tabpagenr('$')
-
+  local selected_idx = 1
   for i = 1, tabnr do
     -- Select the highlighting
     if i == vim.fn.tabpagenr() then
       s = s .. '%#TabLineSel#'
+      selected_idx = i
     else
       s = s .. '%#TabLine#'
     end
@@ -192,6 +194,15 @@ function KissTabLine()
 
     -- The label is made by kiss_tab_sel()
     s = s .. ' ' .. i .. ':' .. kiss_tab_sel(i) .. ' '
+  end
+
+  -- Fouce the selected tab when truncate the tabline
+  local item_max_width = 20     -- the max width of the tab
+  local num_of_tab_showed =  vim.o.columns / item_max_width
+  if selected_idx > num_of_tab_showed then
+    s = '%<' .. s       -- truncate the begin. `:h 'statusline'`
+  else
+    s = s .. '%<'       -- truncate the end
   end
 
   -- After the last tab fill with TabLineFill and reset tab page nr
@@ -206,3 +217,96 @@ function KissTabLine()
 end
 
 vim.o.tabline = '%!v:lua.KissTabLine()'
+--]]
+
+-- ## KissBufLine
+--[[
+vim.o.showtabline = 2
+
+-- deus theme
+vim.api.nvim_set_hl(0, 'TabLineSel', {fg = '#292c33', bg = '#98C379', ctermfg = 235, ctermbg = 114})
+
+local function is_excluded(bufnr)
+  local is_ex = vim.fn.buflisted(bufnr) == 0
+    or vim.fn.getbufvar(bufnr, '&filetype') == 'qf'           -- quickfix
+    or vim.fn.getbufvar(bufnr, '&buftype') == 'terminal'
+  return is_ex
+end
+
+local function get_buffers()
+  local buffers = {}
+  for nr = 1, vim.fn.bufnr('$') do
+    if not is_excluded(nr) then
+      table.insert(buffers, {
+        bufnr = nr,
+        name = vim.fn.fnamemodify(vim.fn.bufname(nr), ':t'),
+        is_selected = nr == vim.fn.bufnr('%'),
+        flags = {
+          modified = vim.fn.getbufvar(nr, '&modified') == 1,
+          --modifiable = vim.fn.getbufvar(nr, '&modifiable') == 1,
+          --readonly = vim.fn.getbufvar(nr, '&readonly') == 1,
+        },
+      })
+    end
+  end
+  return buffers
+end
+
+local function kiss_buf_sel(buf)
+  local bufname = buf.name
+  if buf.name == '' then
+    bufname = '[No Name]'
+  end
+
+  if buf.flags.modified then
+    bufname = bufname .. '+'
+  end
+
+  return bufname
+end
+
+_G.KissBufLineSwitchBuf = function(bufnr)
+  vim.api.nvim_set_current_buf(bufnr)
+end
+
+_G.KissBufLine = function()
+  local s = ''
+  local buffers = get_buffers()
+  local i = 1
+  local selected_idx = 1
+  for _, buf in ipairs(buffers) do
+    -- Select the highlighting
+    if buf.is_selected then
+      s = s .. '%#TabLineSel#'
+      selected_idx = i
+    else
+      s = s .. '%#TabLine#'
+    end
+
+    -- Set the buffer number (for mouse clicks)
+    if vim.fn.has("tablineat") then
+      s = s .. '%' .. buf.bufnr .. '@v:lua.KissBufLineSwitchBuf@'
+    end
+
+    -- The label is the buffer name
+    s = s .. ' ' .. i .. ':' .. kiss_buf_sel(buf) .. ' '
+
+    i = i + 1
+  end
+
+  -- Fouce the selected tab when truncate the bufline
+  local item_max_width = 20
+  local num_of_tab_showed =  vim.o.columns / item_max_width
+  if selected_idx > num_of_tab_showed then
+    s = '%<' .. s       -- truncate the begin. `:h 'statusline'`
+  else
+    s = s .. '%<'       -- truncate the end
+  end
+
+  s = s .. '%#TabLineFill#%T'
+
+  return s
+end
+
+vim.o.tabline = '%!v:lua.KissBufLine()'
+--]]
