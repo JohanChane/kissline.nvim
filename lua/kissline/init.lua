@@ -1,3 +1,5 @@
+table.unpack = table.unpack or unpack -- 5.1 compatibility
+
 local M = {}
 
 local config = {
@@ -42,67 +44,66 @@ local function config_bufline()
   -- ## Select buftab
   for i = 1, 9 do
     vim.keymap.set('n', '<M-' .. i .. '>', function()
-      bufline.select_tabnr(vim.api.nvim_get_current_buf(), i)
+      bufline.select_tab(i)
     end, { noremap = true, silent = true })
   end
 
   vim.keymap.set('n', '<Tab>', function()
-    bufline.select_tabnr(vim.api.nvim_get_current_buf(), '+1')
+    bufline.select_tab('+1')
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', '<S-Tab>', function()
-    bufline.select_tabnr(vim.api.nvim_get_current_buf(), '-1')
+    bufline.select_tab('-1')
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', '<M-0>', function()
-    bufline.select_tabnr(vim.api.nvim_get_current_buf(), '$')
+    bufline.select_tab('$')
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', 'g<Tab>', function()
-    bufline.last_bufnr()
+    bufline.select_last_buf()
   end, { noremap = true, silent = true })
 
   -- ## Move buftab
   vim.keymap.set('n', '<M-S-h>', function()
-    local last_bufnr = bufline.move_bufnr(vim.api.nvim_get_current_buf(), '-1')
+    bufline.move_buf('-1')
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', '<M-S-l>', function()
-    local last_bufnr = bufline.move_bufnr(vim.api.nvim_get_current_buf(), '+1')
+    bufline.move_buf('+1')
   end, { noremap = true, silent = true })
 
   -- ## Close(Delete) buftab
   for i = 1, 9 do
     vim.keymap.set('n', '<Leader>q' .. i, function()
-      bufline.delete_bufnr_by_tab(i)
+      bufline.rm_buf_for_tab(i)
     end, { noremap = true })
   end
   vim.keymap.set('n', '<Leader>qq', function()
-    --vim.api.nvim_buf_delete(0, {})
-    bufline.delete_cur_buf()
+    bufline.rm_cur_buf()
   end, { noremap = true, silent = true })
 
-  if config.bufline.abbr_bdelete then
-    local function delete_cur_buf()
-      bufline.delete_cur_buf()
-    end
-    vim.api.nvim_create_user_command('DeleteCurBuf', delete_cur_buf, {})
+  local function rm_cur_buf(opts)
+    bufline.rm_cur_buf(opts.bang)
+  end
+  vim.api.nvim_create_user_command('RmCurBuf', rm_cur_buf, {bang = true})
 
-    vim.cmd('cnoreabbrev bd DeleteCurBuf')
-    vim.cmd('cnoreabbrev bdel DeleteCurBuf')
-    vim.cmd('cnoreabbrev bdelete DeleteCurBuf')
+  if config.bufline.abbr_bdelete then
+    vim.cmd('cnoreabbrev bd RmCurBuf')
+    vim.cmd('cnoreabbrev bdel RmCurBuf')
+    vim.cmd('cnoreabbrev bdelete RmCurBuf')
   end
 
   vim.keymap.set('n', '<Leader>ql', function()
-    bufline.delete_left_bufnrs(vim.api.nvim_get_current_buf())
+    bufline.rm_left_bufs()
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', '<Leader>qr', function()
-    bufline.delete_right_bufnrs(vim.api.nvim_get_current_buf())
+    bufline.rm_right_bufs()
   end, { noremap = true, silent = true })
 
   vim.keymap.set('n', '<Leader>qo', function()
-    bufline.delete_other_bufnrs(vim.api.nvim_get_current_buf())
+    bufline.rm_other_bufs()
   end, { noremap = true, silent = true })
 end
 
@@ -128,6 +129,14 @@ function M.setup(user_options)
     M.bufline = require('kissline.bufline')
     config_bufline()
   end
+
+  vim.api.nvim_create_user_command(
+    "BlSimTest",
+    function(_)
+      require('kissline_test.bl_sim').test()
+    end,
+    {}
+  )
 end
 
 return M

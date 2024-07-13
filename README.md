@@ -2,9 +2,21 @@
 
 ## Why kissline
 
-Inspired by [suckless](https://suckless.org/), I thought writing my own `tabline` and `statusline` would be a good choice. The reason is that whenever I install tabline and statusline plugins, I like to configure them the way I want. This takes quite a bit of time. Additionally, I prefer minimalist things, so I decided to write my own tabline and statusline. This way, I can add the features I want and know exactly what’s going on internally.
+Inspired by [suckless](https://suckless.org/), I thought writing my own `tabline` and `statusline` would be a good choice. The reason is that whenever I install tabline and statusline plugins, I like to configure them the way I want. I need to spend some time reading the documentation. Additionally, I prefer minimalist solutions, so I decided to write my own tabline and statusline. This way, I can add the features I want and know exactly what’s going on internally.
 
-If I made it highly configurable, I think it would make the code complex. Moreover, everyone’s configurations are different, and since the code isn’t extensive, you can directly modify it.
+Most people typically modify the theme, change the format or position of some status information, or add some extra information. These are relatively easy to do by directly modifying the corresponding code.
+
+Compared to the above, I think functionality and performance are more important. Below, I summarize the issues I encountered with the plugins I used:
+-   In `tabline` mode:
+    -   When there are many tabs, even if you select one, it might not display correctly. (Only some minimalist plugins have this issue)
+-   In `bufline` mode (most plugins don't implement this functionality):
+    -   When you delete the current buffer, it switches to an "unexpected" tab, rather than switching to the tab on the left or right like a browser would.
+    -   When you add a new buffer, it appears at the last tab, instead of opening to the right of the current tab like a browser.
+    -   There is no functionality to close tabs on the left or right.
+    -   There is no functionality to move tabs.
+    -   There is no functionality to jump to the previous tab. Although this is not a commonly used feature, it can be quite useful at times.
+
+All of the above features are implemented in `kissline`.
 
 ## Target Audience
 

@@ -2,6 +2,7 @@
 
 vim.o.showtabline = 2
 
+-- Check if a buffer should be excluded from the buffer line
 local function is_excluded(bufnr)
   local is_ex = vim.fn.buflisted(bufnr) == 0
       or vim.fn.getbufvar(bufnr, '&filetype') == 'qf' -- quickfix
@@ -9,92 +10,78 @@ local function is_excluded(bufnr)
   return is_ex
 end
 
-local bufline_cache = {
-  bufnr_list = {},        -- for tabnr, bufnr in ipairs(bufnr_list)
-  buftabnr_map = {},      -- bufnr-tabnr mapping
+local BlSim = require('kissline.bl_sim').BlSim
+--[[
+Be aware that some events trigger actions in bl_sim. For example, `BufEnter`, so there’s no need to execute bl_sim's set current buffer action after setting the current buffer.
+--]]
+local bl_sim = BlSim:new({ debug = false }) -- buffer line simulator
 
-  seltab_bufnr = nil,     -- selected tab bufnr, not current bufnr.
-  old_seltab_bufnr = nil, -- the old value of seltab_bufnr. And used for last_bufnr.
-
-  buflist_changed = nil,  -- Used to trigger update bufnr_list
+local bl_cache = {                      -- buffer line cache
+  buflist_changed = {},                 -- Used to trigger updates for the buffer list
 }
 
-local function get_bufnr(tabnr)
-  return bufline_cache.bufnr_list[tabnr]
+local function delay_redrawing_tabline(timeout)
+    vim.defer_fn(function()
+      vim.api.nvim__redraw({ tabline = true })
+    end, timeout)
 end
 
-local function get_tabnr(bufnr)
-  return bufline_cache.buftabnr_map[bufnr]
-end
-
--- BufDelete is before deleting a buffer. And use `BufDeletePos` is better. See [ref](https://github.com/vim/vim/issues/11041)
+-- Check if the buffer line has changed
 local function has_bufline_changed()
-  if not bufline_cache.buflist_changed then
-    return false
-  end
-
-  if bufline_cache.buflist_changed.event == 'BufDelete' then
-    local bufnr = bufline_cache.buflist_changed.bufnr
-    if vim.fn.buflisted(bufnr) ~= 0 then
-      return false
+  if bl_cache.buflist_changed['BufDelete'] then
+    local ev = bl_cache.buflist_changed['BufDelete']
+    if vim.fn.getbufvar(ev.buf, 'buf_deleting') ~= 1 then
+      bl_sim:log('BufDelete', {}, string.format('ev.buf: ', ev.buf))
+      bl_cache.buflist_changed = {}
+      return true
+    else
+      bl_sim:log('After BufDelete before BufDeletePost', {}, string.format('ev.buf: ', ev.buf))
+      delay_redrawing_tabline(50)
+      return false -- Note: After `BufDelete` before `BufDeletePost`. Other event handling must occur after `BufDeletePost`.
     end
   end
 
-  return true
+  for event, _ in pairs(bl_cache.buflist_changed) do
+    if event ~= 'BufDelete' then
+      if bl_cache.buflist_changed[event] then
+        bl_cache.buflist_changed = {}
+        bl_sim:log(string.format('%s', event))
+        return true
+      end
+    end
+  end
+
+  return false
 end
 
+-- Update the buffer line
 local function update_bufline()
-  if not has_bufline_changed() then
-    return
+  -- ## Update buflist
+  if has_bufline_changed() then
+    bl_sim:set_buflist_sync(false)
   end
 
-  local function get_seltab_bufnr()
-    return bufline_cache
-        .old_seltab_bufnr -- Because `bufline_cache.seltab_bufnr` has updated before entering udpate_bufline()
-  end
-
-  -- ## bufnr_list
-  local new_bufnr_list_asc = {} -- bufnr is ascend
-  local bufnr_set = {}
+  local bufnr_list_included = {}
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if not is_excluded(bufnr) then
-      table.insert(new_bufnr_list_asc, bufnr)
-      bufnr_set[bufnr] = true
+      table.insert(bufnr_list_included, bufnr)
     end
   end
 
-  -- Delete old bufnrs
-  local new_bufnr_list = {}
-  local new_bufnr_set = {}
-  for _, bufnr in ipairs(bufline_cache.bufnr_list) do
-    if bufnr_set[bufnr] then
-      table.insert(new_bufnr_list, bufnr)
-      new_bufnr_set[bufnr] = true
-    end
+  if #bl_sim:bufnr_list() ~= #bufnr_list_included then
+    bl_sim:set_buflist_sync(false)
   end
 
-  -- Add new bufnrs
-  local seltab_bufnr = get_seltab_bufnr()
-  local seltabnr = get_tabnr(seltab_bufnr) or 0
-  for _, bufnr in pairs(new_bufnr_list_asc) do
-    if not new_bufnr_set[bufnr] then
-      table.insert(new_bufnr_list, seltabnr + 1, bufnr)
-    end
+  bl_sim:update_buflist(bufnr_list_included)
+
+  -- ## Update the selected buffer
+  local cur_bufnr = vim.api.nvim_get_current_buf()
+  if not is_excluded(cur_bufnr) then
+    bl_sim:update_selbuf(cur_bufnr)
   end
-
-  bufline_cache.bufnr_list = new_bufnr_list
-
-  -- ## buftabnr_map
-  local new_buftabnr_map = {}
-  for tabnr, bufnr in ipairs(bufline_cache.bufnr_list) do
-    new_buftabnr_map[bufnr] = tabnr
-  end
-
-  bufline_cache.buftabnr_map = new_buftabnr_map
-
-  bufline_cache.buflist_changed = nil
 end
 
+-- Select the buffer name
 local function kiss_buf_sel(bufnr)
   local bufname = vim.fn.bufname(bufnr)
   if bufname ~= '' then
@@ -111,15 +98,18 @@ local function kiss_buf_sel(bufnr)
   return bufname
 end
 
+-- Switch to the selected buffer
 _G.KissLineSwitchBuf = function(bufnr)
   vim.api.nvim_set_current_buf(bufnr)
 end
 
--- This function is running after the events(e.g. BufDelete) callback function.
+-- This function is running after the events (e.g., BufDelete) callback function.
 local function kissbufline()
+  bl_sim:log('redraw tabline', { inspect = false })
+
   update_bufline()
 
-  local bufnr_list = bufline_cache.bufnr_list
+  local bufnr_list = bl_sim:bufnr_list()
 
   local tab_sect_str = ''                  -- tab section string
   local cur_tab_sect_width = 0
@@ -130,7 +120,7 @@ local function kissbufline()
   for tabnr, bufnr in ipairs(bufnr_list) do
     -- Select the highlighting
     local the_tab_str = ''
-    if bufnr == bufline_cache.seltab_bufnr then
+    if bufnr == bl_sim:selbufnr() then
       the_tab_str = the_tab_str .. '%#TabLineSel#'
       does_contain_seltab = true
     else
@@ -155,7 +145,7 @@ local function kissbufline()
         tab_sect_str = left_more_str .. the_tab_str
         cur_tab_sect_width = #left_more_str + #the_tab_content
       else
-        if bufnr == bufline_cache.seltab_bufnr then -- the seltab across the tab page.
+        if bufnr == bl_sim:selbufnr() then -- the seltab across the tab page.
           -- It will be the first tab in the next tab page
           tab_sect_str = left_more_str .. the_tab_str
           cur_tab_sect_width = #left_more_str + #the_tab_content
@@ -177,27 +167,29 @@ local function kissbufline()
   return tabline_str
 end
 
-local function amend_tabnr(tabnr)
-  local tab_num = #bufline_cache.bufnr_list
-  if tabnr < 1 then
-    tabnr = 1
-  elseif tabnr > tab_num then
-    tabnr = tab_num
-  end
-
-  return tabnr
-end
-
-local function set_current_bufnr(bufnr)
-  if bufnr == nil then
+-- Set the current buffer
+local function set_cur_buf(bufnr)
+  if not bl_sim:does_bufnr_exist(bufnr) then
+    bl_sim:log(string.format('bufnr (%s) does not exist', bufnr))
     return
   end
 
   vim.api.nvim_set_current_buf(bufnr)
 end
 
+-- delete buffer
+local function rm_buf(bufnr, force)
+  vim.api.nvim_buf_delete(bufnr, {force = force or false})
+end
+local function rm_bufs(bufnr_list)
+  for _, bufnr in ipairs(bufnr_list) do
+    rm_buf(bufnr)
+  end
+end
+
 local kissline_augroup = require('kissline').common.kissline_augroup
 
+-- BufDelete is before deleting a buffer. And use `BufDeletePost` is better. See [ref](https://github.com/vim/vim/issues/11041)
 -- `BufAdd` does not include `VimEnter`
 vim.api.nvim_create_autocmd({ 'BufAdd', 'VimEnter', 'BufDelete' }, {
   group = kissline_augroup,
@@ -207,10 +199,14 @@ vim.api.nvim_create_autocmd({ 'BufAdd', 'VimEnter', 'BufDelete' }, {
       return
     end
 
-    bufline_cache.buflist_changed = {
-      event = ev.event,
-      bufnr = ev.buf
-    }
+    bl_cache.buflist_changed[ev.event] = ev
+
+    if ev.event == 'BufDelete' then
+      vim.fn.setbufvar(ev.buf, 'buf_deleting', 1)     -- For `BufDeletePost`
+
+      -- The reason for adding this code is that after restoring the session, without any other operations, directly using the shortcut to delete bufnrs, Neovim does not refresh the tabline.
+      delay_redrawing_tabline(50)
+    end
   end,
 })
 
@@ -222,197 +218,103 @@ vim.api.nvim_create_autocmd({ 'BufEnter' }, {
       return
     end
 
-    -- Re-enter the same buffer. e.g. open a file manager (ranger) and quit.
-    if ev.buf == bufline_cache.seltab_bufnr then
-      return
-    end
-
-    bufline_cache.old_seltab_bufnr = bufline_cache.seltab_bufnr
-    bufline_cache.seltab_bufnr = ev.buf
+    bl_sim:log('BufEnter:before selecting buf', { inspect = true })
+    bl_sim:select_buf(ev.buf)
+    bl_sim:log('BufEnter:after selecting buf', { inspect = true })
   end,
 })
 
 vim.o.tabline = '%!v:lua.require("kissline").bufline.kissbufline()'
 
--- pos: '-<offset>', '+<offset>', '<tabnr>', '$'
-local function calculate_tabnr(tabnr, pos)
-  local dst_tabnr
-  if pos:sub(1, 1) == '+' or pos:sub(1, 1) == '-' then
-    dst_tabnr = tabnr + tonumber(pos)
-  elseif pos == '$' then
-    dst_tabnr = #bufline_cache.bufnr_list
-  else
-    dst_tabnr = tonumber(pos) or 1
-  end
-  return dst_tabnr
-end
-
-local function get_bufnr_by_pos(bufnr, pos)
-  local tabnr = get_tabnr(bufnr)
-  local dst_tabnr = calculate_tabnr(tabnr, pos)
-  local tab_num = #bufline_cache.bufnr_list
-  if dst_tabnr < 1 then
-    dst_tabnr = tab_num
-  elseif dst_tabnr > tab_num then
-    dst_tabnr = 1
-  end
-
-  return get_bufnr(dst_tabnr)
-end
-
--- `vim.api.nvim_get_current_buf()` will return `nil` sometime.
-local function amend_bufnr(bufnr)
-  return bufnr or bufline_cache.seltab_bufnr
-end
-
-local function amend_pos(pos)
-  if type(pos) == 'number' and math.floor(pos) == pos then
-    pos = tostring(pos)
-  end
-
-  return pos
-end
-
+-- Select the tab at the given position
 -- pos: '-<offset>', '+<offset>', '<tabnr>' or <tabnr>, '$'
-local function select_tabnr(bufnr, pos)
-  bufnr = amend_bufnr(bufnr)
-  set_current_bufnr(get_bufnr_by_pos(bufnr, amend_pos(pos)))
+local function select_tab(pos)
+  set_cur_buf(bl_sim:get_bufnr_at_pos(pos)) -- Will trigger BufEnter event. So the bufline_simulator doesn't need to select tab.
 end
 
-local function left_bufnrs(bufnr)
-  bufnr = amend_bufnr(bufnr)
+-- Select the last buffer
+local function select_last_buf()
+  set_cur_buf(bl_sim:last_selbufnr())
+  bl_sim:log('select last bufnr', { inspect = true })
+end
 
-  local left_bnrs = {}
-  for _, bnr in ipairs(bufline_cache.bufnr_list) do
-    if bnr == bufnr then
-      break
-    else
-      table.insert(left_bnrs, bnr)
-    end
+-- Remove buffers to the left of the current buffer
+local function rm_left_bufs()
+  local left_bufnrs = bl_sim:rm_left_bufs()
+  if not left_bufnrs then
+    return
   end
 
-  return left_bnrs
+  rm_bufs(left_bufnrs)
+  bl_sim:log('delete left bufs', { inspect = true })
 end
 
-local function delete_left_bufnrs(bufnr)
-  local left_bnrs = left_bufnrs(bufnr)
-  for _, bnr in ipairs(left_bnrs) do
-    vim.api.nvim_buf_delete(bnr, {})
+-- Remove buffers to the right of the current buffer
+local function rm_right_bufs()
+  local right_bufnrs = bl_sim:rm_right_bufs()
+  if not right_bufnrs then
+    return
   end
 
-  vim.api.nvim__redraw({ tabline = true }) -- To prevent delays in updating. Optional
+  rm_bufs(right_bufnrs)
+  bl_sim:log('delete right bufs', { inspect = true })
 end
 
-local function right_bufnrs(bufnr)
-  bufnr = amend_bufnr(bufnr)
-
-  local right_bnrs = {}
-  for i = #bufline_cache.bufnr_list, 1, -1 do
-    if bufline_cache.bufnr_list[i] == bufnr then
-      break
-    else
-      table.insert(right_bnrs, bufline_cache.bufnr_list[i])
-    end
+-- Remove buffers other than the current buffer
+local function rm_other_bufs()
+  local other_bufnrs = bl_sim:rm_other_bufs()
+  if not other_bufnrs then
+    return
   end
 
-  return right_bnrs
+  rm_bufs(other_bufnrs)
+  bl_sim:log('delete other bufs', { inspect = true })
 end
 
-local function delete_right_bufnrs(bufnr)
-  local right_bnrs = right_bufnrs(bufnr)
-  for _, bnr in ipairs(right_bnrs) do
-    vim.api.nvim_buf_delete(bnr, {})
-  end
-
-  vim.api.nvim__redraw({ tabline = true }) -- To prevent delays in updating. Optional
-end
-
-local function other_bufnrs(bufnr)
-  bufnr = amend_bufnr(bufnr)
-
-  local other_bnrs = {}
-  for _, bnr in ipairs(bufline_cache.bufnr_list) do
-    if bnr ~= bufnr then
-      table.insert(other_bnrs, bnr)
-    end
-  end
-
-  return other_bnrs
-end
-
-local function delete_other_bufnrs(bufnr)
-  local other_bnrs = other_bufnrs(bufnr)
-  for _, bnr in ipairs(other_bnrs) do
-    vim.api.nvim_buf_delete(bnr, {})
-  end
-
-  vim.api.nvim__redraw({ tabline = true }) -- To prevent delays in updating. Optional
-end
-
-local function last_bufnr()
-  set_current_bufnr(bufline_cache.old_seltab_bufnr)
-end
-
+-- Move the buffer to the given position
 -- pos: '-<offset>', '+<offset>', '<tabnr>' or <tabnr>, '$'
-local function move_bufnr(bufnr, pos)
-  bufnr = amend_bufnr(bufnr)
-
-  local tabnr = get_tabnr(bufnr)
-  local dst_tabnr = calculate_tabnr(tabnr, amend_pos(pos))
-  dst_tabnr = amend_tabnr(dst_tabnr)
-
-  table.remove(bufline_cache.bufnr_list, tabnr)
-  table.insert(bufline_cache.bufnr_list, dst_tabnr, bufnr)
-
+local function move_buf(pos)
+  bl_sim:move_tab(pos)
   vim.api.nvim__redraw({ tabline = true })
 end
 
-local function delete_cur_buf()
-  local cur_bufnr = vim.api.nvim_get_current_buf()
-
-  if is_excluded(cur_bufnr) then
-    vim.api.nvim_buf_delete(cur_bufnr, {})
+-- Delete the buffer for the given tab number
+local function rm_buf_for_tab(tabnr, force)
+  local bufnr = bl_sim:get_bufnr(tabnr)
+  if not bufnr then
     return
   end
 
-  -- displaye left tab after deleting buffer.
-  -- `:h :bd`: If buffer [N] is the current buffer, another buffer will be displayed instead.
-  if #bufline_cache.bufnr_list <= 1 then
-    vim.api.nvim_buf_delete(cur_bufnr, {})
-    return
+  local selbufnr = bl_sim:selbufnr()
+
+  bl_sim:rm_buf(bufnr)
+
+  if bufnr == selbufnr then
+    bl_sim:log('delete cur buf', true)
+    set_cur_buf(bl_sim:selbufnr())
   end
-
-  local cur_tabnr = get_tabnr(cur_bufnr)
-  -- Since tabnr 1 will be deleted, tabnr 2 will be selected.
-  local prev_tabnr = cur_tabnr == 1 and 2 or cur_tabnr - 1
-
-  set_current_bufnr(get_bufnr(prev_tabnr))
-  vim.api.nvim_buf_delete(cur_bufnr, {})
+  rm_buf(bufnr, force)
 end
 
-local function delete_bufnr_by_tab(tabnr)
-  tabnr = amend_tabnr(tabnr)
-  local bufnr = get_bufnr(tabnr)
-  local cur_bufnr = vim.api.nvim_get_current_buf()
-  if bufnr == cur_bufnr then
-    delete_cur_buf()
-  else
-    vim.api.nvim_buf_delete(bufnr, {})
-  end
+-- Remove the current buffer
+local function rm_cur_buf(force)
+  bl_sim:log('remove cur buf:before remove', { inspect = true })
+  rm_buf_for_tab(bl_sim:seltabnr(), force)
+  bl_sim:log('remove cur buf:after remove', { inspect = true })
 end
 
 return {
   kissbufline = kissbufline,
 
-  select_tabnr = select_tabnr,
+  select_tab = select_tab,
 
-  delete_left_bufnrs = delete_left_bufnrs,
-  delete_right_bufnrs = delete_right_bufnrs,
-  delete_other_bufnrs = delete_other_bufnrs,
-  delete_cur_buf = delete_cur_buf,
-  delete_bufnr_by_tab = delete_bufnr_by_tab,
+  select_last_buf = select_last_buf,
 
-  last_bufnr = last_bufnr,
+  rm_left_bufs = rm_left_bufs,
+  rm_right_bufs = rm_right_bufs,
+  rm_other_bufs = rm_other_bufs,
+  rm_cur_buf = rm_cur_buf,
+  rm_buf_for_tab = rm_buf_for_tab,
 
-  move_bufnr = move_bufnr,
+  move_buf = move_buf,
 }
