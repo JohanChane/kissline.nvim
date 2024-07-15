@@ -2,7 +2,7 @@
 
 ## Why kissline
 
-Inspired by [suckless](https://suckless.org/), I thought writing my own `tabline` and `statusline` would be a good choice. The reason is that whenever I install tabline and statusline plugins, I like to configure them the way I want. I need to spend some time reading the documentation. Additionally, I prefer minimalist solutions, so I decided to write my own tabline and statusline. This way, I can add the features I want and know exactly what’s going on internally.
+Inspired by [suckless](https://suckless.org/), I thought writing my own `tabline/bufline` and `statusline` would be a good choice. The reason is that whenever I install tabline and statusline plugins, I like to configure them the way I want. I need to spend some time reading the documentation. Additionally, I prefer minimalist solutions, so I decided to write my own tabline and statusline. This way, I can add the features I want and know exactly what’s going on internally.
 
 Most people typically modify the theme, change the format or position of some status information, or add some extra information. These are relatively easy to do by directly modifying the corresponding code.
 
@@ -35,10 +35,7 @@ Works similarly to tabline, with features like:
 
 - Select tab: like `<N>gt`, tablast
 - Move tab: like `tabmove`
-- Close tabs
-  - delete other buffers
-  - delete left buffers 
-  - delete right buffers
+- Close tabs: delete left/right/other buffers
 - Go to the last tab: like `g<Tab>`
 - New buftabs open to the right of the current buftab.
 - Delete the current buffer automatically selects the left tab.
@@ -67,8 +64,6 @@ Steps to install:
           },
           bufline = {
             enable = false,
-            abbr_bdelete = false,    -- cnoreabbrev the `bd/bdel/bdelete` command.
-                                     -- For controlling the buffer display after deleting a buffer.
           },
         })
       end
@@ -81,12 +76,15 @@ Steps to install:
 .
 ├── LICENSE
 ├── lua
-│   └── kissline
-│       ├── bufline.lua
-│       ├── common.lua              # Common items used by various components
-│       ├── init.lua                # Plugin loading tasks, e.g., setup, configuration, key bindings, etc.
-│       ├── statusline.lua
-│       └── tabline.lua
+│   ├── kissline
+│   │   ├── bl_sim.lua              # buffe line simulator used to simulate the behavior of the buffer line.
+│   │   ├── bufline.lua
+│   │   ├── common.lua              # Common items used by various components
+│   │   ├── init.lua                # Plugin loading tasks, e.g., setup, configuration, key bindings, etc.
+│   │   ├── statusline.lua
+│   │   └── tabline.lua
+│   └── kissline_test
+│       └── bl_sim.lua              # For testing buffer line simulator.
 └── README.md
 ```
 

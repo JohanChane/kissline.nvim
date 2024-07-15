@@ -13,7 +13,7 @@ If you scatter behavior code everywhere and then combine it with some events of 
 ## Usage of BlSim
 BlSim simulates the execution of an action, and then Neovim executes this action.
 
-Finally, you set Neovim's state to the state after BlSim's execution.
+Finally, you set Neovim's state to the state after BlSim's execution. (Perhaps you can use Neovim's event triggers to invoke the corresponding events of the emulator, instead of triggering them manually.)
 
 If the external state changes, synchronize the internal state with the external state.
 
@@ -340,6 +340,7 @@ function BlSim:new(_opt)
   function self:update_selbuf(cur_bufnr)    -- cur_bufnr is a included bufnr
     if cur_bufnr ~= self:selbufnr() then
       _selbufnr = cur_bufnr
+      self:log('selbufnr have updated', { inspect = true })
     end
   end
 

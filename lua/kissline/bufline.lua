@@ -2,6 +2,8 @@
 
 vim.o.showtabline = 2
 
+vim.api.nvim_set_hl(0, 'TabLineSelUnfocused', { fg = '#98c379', bg = '#3e4451', ctermfg = 235, ctermbg = 114 })
+
 -- Check if a buffer should be excluded from the buffer line
 local function is_excluded(bufnr)
   local is_ex = vim.fn.buflisted(bufnr) == 0
@@ -12,18 +14,20 @@ end
 
 local BlSim = require('kissline.bl_sim').BlSim
 --[[
-Be aware that some events trigger actions in bl_sim. For example, `BufEnter`, so there’s no need to execute bl_sim's set current buffer action after setting the current buffer.
+Currently, new/delete buffer and set current buffer are invoked by Neovim's event triggers. Additionally, when the tabline is redrawn, the state of the emulator and Neovim will be automatically synchronized.
 --]]
 local bl_sim = BlSim:new({ debug = false }) -- buffer line simulator
 
-local bl_cache = {                      -- buffer line cache
-  buflist_changed = {},                 -- Used to trigger updates for the buffer list
+local bl_cache = {                          -- buffer line cache
+  buflist_changed = {},                     -- Used to trigger updates for the buffer list
+  bufnr_jump_to = nil,                      -- Save the bufnr on the left of the deleted buffer.
+  -- In Neovim Deleting the current buffer will switch to the previous buffer in the jumplist.
 }
 
 local function delay_redrawing_tabline(timeout)
-    vim.defer_fn(function()
-      vim.api.nvim__redraw({ tabline = true })
-    end, timeout)
+  vim.defer_fn(function()
+    vim.api.nvim__redraw({ tabline = true })
+  end, timeout)
 end
 
 -- Check if the buffer line has changed
@@ -120,8 +124,10 @@ local function kissbufline()
   for tabnr, bufnr in ipairs(bufnr_list) do
     -- Select the highlighting
     local the_tab_str = ''
-    if bufnr == bl_sim:selbufnr() then
+    if bufnr == vim.api.nvim_get_current_buf() then
       the_tab_str = the_tab_str .. '%#TabLineSel#'
+    elseif tabnr == bl_sim:seltabnr() then
+      the_tab_str = the_tab_str .. '%#TabLineSelUnfocused#'
       does_contain_seltab = true
     else
       the_tab_str = the_tab_str .. '%#TabLine#'
@@ -178,12 +184,19 @@ local function set_cur_buf(bufnr)
 end
 
 -- delete buffer
-local function rm_buf(bufnr, force)
-  vim.api.nvim_buf_delete(bufnr, {force = force or false})
+local function nvim_rm_buf(bufnr, force)
+  vim.api.nvim_buf_delete(bufnr, { force = force or false })
 end
-local function rm_bufs(bufnr_list)
+
+local function rm_bufs(bufnr_list, force)
   for _, bufnr in ipairs(bufnr_list) do
-    rm_buf(bufnr)
+    if not force then
+      if vim.fn.getbufvar(bufnr, '&mod') ~= 1 then
+        nvim_rm_buf(bufnr, force)
+      end
+    else
+      nvim_rm_buf(bufnr, force)
+    end
   end
 end
 
@@ -202,7 +215,13 @@ vim.api.nvim_create_autocmd({ 'BufAdd', 'VimEnter', 'BufDelete' }, {
     bl_cache.buflist_changed[ev.event] = ev
 
     if ev.event == 'BufDelete' then
-      vim.fn.setbufvar(ev.buf, 'buf_deleting', 1)     -- For `BufDeletePost`
+      bl_sim:rm_buf(ev.buf)     -- Just for getting the bufnr from bl_sim
+
+      if ev.buf == vim.api.nvim_get_current_buf() then
+        bl_cache.bufnr_jump_to = bl_sim:selbufnr()
+      end
+
+      vim.fn.setbufvar(ev.buf, 'buf_deleting', 1) -- For `BufDeletePost`
 
       -- The reason for adding this code is that after restoring the session, without any other operations, directly using the shortcut to delete bufnrs, Neovim does not refresh the tabline.
       delay_redrawing_tabline(50)
@@ -214,6 +233,16 @@ vim.api.nvim_create_autocmd({ 'BufEnter' }, {
   group = kissline_augroup,
   pattern = '*',
   callback = function(ev)
+    if bl_cache.bufnr_jump_to then
+      if ev.buf == bl_cache.bufnr_jump_to then
+        bl_cache.bufnr_jump_to = nil
+      else
+        set_cur_buf(bl_cache.bufnr_jump_to)
+        bl_cache.bufnr_jump_to = nil
+        return
+      end
+    end
+
     if is_excluded(ev.buf) then
       return
     end
@@ -278,28 +307,19 @@ local function move_buf(pos)
   vim.api.nvim__redraw({ tabline = true })
 end
 
+local function rm_buf(bufnr, force)
+  nvim_rm_buf(bufnr, force)
+end
+
 -- Delete the buffer for the given tab number
 local function rm_buf_for_tab(tabnr, force)
-  local bufnr = bl_sim:get_bufnr(tabnr)
-  if not bufnr then
-    return
-  end
-
-  local selbufnr = bl_sim:selbufnr()
-
-  bl_sim:rm_buf(bufnr)
-
-  if bufnr == selbufnr then
-    bl_sim:log('delete cur buf', true)
-    set_cur_buf(bl_sim:selbufnr())
-  end
-  rm_buf(bufnr, force)
+  rm_buf(bl_sim:get_bufnr(tabnr), force)
 end
 
 -- Remove the current buffer
 local function rm_cur_buf(force)
   bl_sim:log('remove cur buf:before remove', { inspect = true })
-  rm_buf_for_tab(bl_sim:seltabnr(), force)
+  rm_buf(vim.api.nvim_get_current_buf(), force)
   bl_sim:log('remove cur buf:after remove', { inspect = true })
 end
 

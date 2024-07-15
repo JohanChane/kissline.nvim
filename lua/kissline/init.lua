@@ -11,7 +11,6 @@ local config = {
   },
   bufline = {
     enable = false,
-    abbr_bdelete = false,
   },
 }
 
@@ -83,16 +82,9 @@ local function config_bufline()
     bufline.rm_cur_buf()
   end, { noremap = true, silent = true })
 
-  local function rm_cur_buf(opts)
+  vim.api.nvim_create_user_command('RmCurBuf', function(opts)
     bufline.rm_cur_buf(opts.bang)
-  end
-  vim.api.nvim_create_user_command('RmCurBuf', rm_cur_buf, {bang = true})
-
-  if config.bufline.abbr_bdelete then
-    vim.cmd('cnoreabbrev bd RmCurBuf')
-    vim.cmd('cnoreabbrev bdel RmCurBuf')
-    vim.cmd('cnoreabbrev bdelete RmCurBuf')
-  end
+  end, {bang = true})
 
   vim.keymap.set('n', '<Leader>ql', function()
     bufline.rm_left_bufs()

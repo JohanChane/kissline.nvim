@@ -128,7 +128,6 @@ local function kiss_line_helper(is_active)
   local hl_groups
   if is_active then
     hl_groups = get_final_higroups(vim.fn.mode())
-    --vim.print(vim.inspect(hl_groups))
   else
     hl_groups = kiss_sts_line_nc_higroups
   end
