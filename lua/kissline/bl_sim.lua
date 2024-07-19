@@ -20,7 +20,8 @@ If the external state changes, synchronize the internal state with the external 
 ## Behavior Description
 1.  A newly added buffer will appear to the right of the selected buffer, and then it will switch to the newly added buffer.
 2.  After deleting the current buffer, it will switch to the buffer on the left. If the first tab is deleted, it will switch to the first tab. If a non-current buffer is deleted, it will not switch.
-3.  When switching to the next tab, if it is the last tab, it will switch to the first tab. Similarly, when switching to the previous tab, if it is the first tab, it will switch to the last tab. Moving tabs will not exhibit this behavior.
+3.  Cycle through tabs.
+4   Move tab cycling.
 --]]
 BlSim = {}
 BlSim.__index = BlSim
@@ -204,6 +205,7 @@ function BlSim:new(_opt)
 
   function self:get_bufnr_at_pos(pos)
     local tabnr = _get_tabnr_with_pos(pos)
+    -- Cycle through tabs
     if tabnr < 1 then
       tabnr = #_bufnr_list
     elseif tabnr > #_bufnr_list then
@@ -222,6 +224,12 @@ function BlSim:new(_opt)
   -- pos: '-<offset>', '+<offset>', '<tabnr>', '$'
   function self:move_tab(pos)
     local dst_tabnr = _get_tabnr_with_pos(pos)
+    -- move tab cycling
+    if dst_tabnr < 1 then
+      dst_tabnr = #_bufnr_list
+    elseif dst_tabnr > #_bufnr_list then
+      dst_tabnr = 1
+    end
     local src_tabnr = self:seltabnr()
     if not dst_tabnr or not self:does_tabnr_exist(dst_tabnr) or dst_tabnr == src_tabnr then
       return

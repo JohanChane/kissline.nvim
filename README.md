@@ -9,7 +9,7 @@ Most people typically modify the theme, change the format or position of some st
 Compared to the above, I think functionality and performance are more important. Below, I summarize the issues I encountered with the plugins I used:
 -   In `tabline` mode:
     -   When there are many tabs, even if you select one, it might not display correctly. (Only some minimalist plugins have this issue)
--   In `bufline` mode (most plugins don't implement this functionality):
+-   In `bufline` mode (most plugins don't implement below functionalities):
     -   When you delete the current buffer, it switches to an "unexpected" tab, rather than switching to the tab on the left or right like a browser would.
     -   When you add a new buffer, it appears at the last tab, instead of opening to the right of the current tab like a browser.
     -   There is no functionality to close tabs on the left or right.
@@ -77,7 +77,7 @@ Steps to install:
 ├── LICENSE
 ├── lua
 │   ├── kissline
-│   │   ├── bl_sim.lua              # buffe line simulator used to simulate the behavior of the buffer line.
+│   │   ├── bl_sim.lua              # buffer line simulator used to simulate the behavior of the buffer line.
 │   │   ├── bufline.lua
 │   │   ├── common.lua              # Common items used by various components
 │   │   ├── init.lua                # Plugin loading tasks, e.g., setup, configuration, key bindings, etc.
