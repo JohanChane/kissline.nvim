@@ -2,18 +2,6 @@ table.unpack = table.unpack or unpack -- 5.1 compatibility
 
 local M = {}
 
-local config = {
-  statusline = {
-    enable = true,
-  },
-  tabline = {
-    enable = true,
-  },
-  bufline = {
-    enable = false,
-  },
-}
-
 local function config_tabline()
   -- ## Select tabs
   for i = 1, 9 do
@@ -99,31 +87,32 @@ local function config_bufline()
   end, { noremap = true, silent = true })
 end
 
-function M.setup(user_options)
-  config = vim.tbl_deep_extend('force', config, user_options)
+function M.setup(opts)
+  local config = require('kissline.config')
+  config.setup_opts = vim.tbl_deep_extend('force', config.default_opts, opts)
 
-  if config.bufline.enable and config.bufline.enable then
-    config.tabline.enable = false
+  local setup_opts = config.setup_opts
+
+  if setup_opts.bufline.enable and setup_opts.bufline.enable then
+    setup_opts.tabline.enable = false
   end
 
-  M.common = require('kissline.common')
-
-  if config.statusline.enable then
+  if setup_opts.statusline.enable then
     M.statusline = require('kissline.statusline')
   end
 
-  if config.tabline.enable then
+  if setup_opts.tabline.enable then
     M.tabline = require('kissline.tabline')
     config_tabline()
   end
 
-  if config.bufline.enable then
+  if setup_opts.bufline.enable then
     M.bufline = require('kissline.bufline')
     config_bufline()
   end
 
   vim.api.nvim_create_user_command(
-    "BlSimTest",
+    'BlSimTest',
     function(_)
       require('kissline_test.bl_sim').test()
     end,

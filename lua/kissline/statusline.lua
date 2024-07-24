@@ -196,7 +196,7 @@ M.kissline = function()
   return kiss_line_helper(true)
 end
 
-local kissline_augroup = require('kissline').common.kissline_augroup
+local kissline_augroup = require('kissline.common').kissline_augroup
 
 vim.api.nvim_create_autocmd({ 'WinEnter', 'BufEnter' }, {
   group = kissline_augroup,

@@ -200,7 +200,7 @@ local function rm_bufs(bufnr_list, force)
   end
 end
 
-local kissline_augroup = require('kissline').common.kissline_augroup
+local kissline_augroup = require('kissline.common').kissline_augroup
 
 -- BufDelete is before deleting a buffer. And use `BufDeletePost` is better. See [ref](https://github.com/vim/vim/issues/11041)
 -- `BufAdd` does not include `VimEnter`

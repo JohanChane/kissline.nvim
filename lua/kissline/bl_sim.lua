@@ -1,5 +1,3 @@
-local M = {}
-
 --[[
 # Description of BlSim (Buffer Line Simulator)
 
@@ -57,19 +55,21 @@ function BlSim:new(_opt)
 
     opt = opt or {}
 
-    local info = debug.getinfo(2, "Sln")
-    local source = info and info.source or "unknown source"
-    local currentline = info and info.currentline or "unknown line"
-    local name = info and info.name or "unknown function"
+    local info = debug.getinfo(2, 'Sln')
+    local source = info and info.source or 'unknown source'
+    local currentline = info and info.currentline or 'unknown line'
+    local name = info and info.name or 'unknown function'
 
-    local filename = source:match("^.+/(.+)$") or source
-    local timestamp = os.date("%M:%S")
+    local filename = source:match('^.+/(.+)$') or source
+    local timestamp = os.date('%M:%S')
 
     print(string.format('## %s [%s:%s:%s] %s', timestamp, filename, currentline, name, title))
     if msg then
-      print('msg: ', msg)
+      print('### msg')
+      print(msg)
     end
     if opt.inspect then
+      print('### inspect')
       _inspect()
     end
   end
