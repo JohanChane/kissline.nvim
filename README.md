@@ -65,6 +65,7 @@ Steps to install:
           bufline = {
             enable = false,
           },
+          --debug = false
         })
       end
     },

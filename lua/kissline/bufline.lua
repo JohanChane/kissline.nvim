@@ -1,5 +1,9 @@
 --- KissBufLine ---
 
+local kl_log = require('kissline.log').Log:new({
+  enable = require('kissline.config').setup_opts.debug
+})
+
 vim.o.showtabline = 2
 
 vim.api.nvim_set_hl(0, 'TabLineSelUnfocused', { fg = '#98c379', bg = '#3e4451', ctermfg = 235, ctermbg = 114 })
@@ -16,7 +20,7 @@ local BlSim = require('kissline.bl_sim').BlSim
 --[[
 Currently, new/delete buffer and set current buffer are invoked by Neovim's event triggers. Additionally, when the tabline is redrawn, the state of the emulator and Neovim will be automatically synchronized.
 --]]
-local bl_sim = BlSim:new({ debug = false }) -- buffer line simulator
+local bl_sim = BlSim:new() -- buffer line simulator
 
 local bl_cache = {                          -- buffer line cache
   buflist_changed = {},                     -- Used to trigger updates for the buffer list
@@ -35,11 +39,11 @@ local function has_bufline_changed()
   if bl_cache.buflist_changed['BufDelete'] then
     local ev = bl_cache.buflist_changed['BufDelete']
     if vim.fn.getbufvar(ev.buf, 'buf_deleting') ~= 1 then
-      bl_sim:log('BufDelete', {}, string.format('ev.buf: ', ev.buf))
+      kl_log:log('BufDelete', string.format('ev.buf: ', ev.buf))
       bl_cache.buflist_changed = {}
       return true
     else
-      bl_sim:log('After BufDelete before BufDeletePost', {}, string.format('ev.buf: ', ev.buf))
+      kl_log:log('After BufDelete before BufDeletePost', string.format('ev.buf: ', ev.buf))
       delay_redrawing_tabline(50)
       return false -- Note: After `BufDelete` before `BufDeletePost`. Other event handling must occur after `BufDeletePost`.
     end
@@ -49,7 +53,7 @@ local function has_bufline_changed()
     if event ~= 'BufDelete' then
       if bl_cache.buflist_changed[event] then
         bl_cache.buflist_changed = {}
-        bl_sim:log(string.format('%s', event))
+        kl_log:log(string.format('%s', event))
         return true
       end
     end
@@ -109,7 +113,7 @@ end
 
 -- This function is running after the events (e.g., BufDelete) callback function.
 local function kissbufline()
-  bl_sim:log('redraw tabline', { inspect = false })
+  kl_log:log('redraw tabline', '', { inspect = function() bl_sim:inspect() end })
 
   update_bufline()
 
@@ -126,6 +130,7 @@ local function kissbufline()
     local the_tab_str = ''
     if bufnr == vim.api.nvim_get_current_buf() then
       the_tab_str = the_tab_str .. '%#TabLineSel#'
+      does_contain_seltab = true
     elseif tabnr == bl_sim:seltabnr() then
       the_tab_str = the_tab_str .. '%#TabLineSelUnfocused#'
       does_contain_seltab = true
@@ -147,7 +152,7 @@ local function kissbufline()
       tab_sect_str = tab_sect_str .. the_tab_str
       cur_tab_sect_width = cur_tab_sect_width + #the_tab_content
     else
-      if not does_contain_seltab then
+      if not does_contain_seltab then -- It will be the first tab in the next tab page
         tab_sect_str = left_more_str .. the_tab_str
         cur_tab_sect_width = #left_more_str + #the_tab_content
       else
@@ -158,7 +163,6 @@ local function kissbufline()
         else
           tab_sect_str = tab_sect_str .. the_tab_str
           tab_sect_str = tab_sect_str .. right_more_str
-          cur_tab_sect_width = cur_tab_sect_width + #the_tab_str + #right_more_str
           break
         end
       end
@@ -176,7 +180,7 @@ end
 -- Set the current buffer
 local function set_cur_buf(bufnr)
   if not bl_sim:does_bufnr_exist(bufnr) then
-    bl_sim:log(string.format('bufnr (%s) does not exist', bufnr))
+    kl_log:log(string.format('bufnr (%s) does not exist', bufnr))
     return
   end
 
@@ -184,19 +188,19 @@ local function set_cur_buf(bufnr)
 end
 
 -- delete buffer
-local function nvim_rm_buf(bufnr, force)
-  vim.api.nvim_buf_delete(bufnr, { force = force or false })
+local function nvim_rm_buf(bufnr, opts)
+  opts = opts or {}
+
+  local status, _ = pcall(function()
+    vim.api.nvim_buf_delete(bufnr, opts)
+  end)
+
+  return status
 end
 
-local function rm_bufs(bufnr_list, force)
+local function rm_bufs(bufnr_list, opts)
   for _, bufnr in ipairs(bufnr_list) do
-    if not force then
-      if vim.fn.getbufvar(bufnr, '&mod') ~= 1 then
-        nvim_rm_buf(bufnr, force)
-      end
-    else
-      nvim_rm_buf(bufnr, force)
-    end
+    nvim_rm_buf(bufnr, opts)
   end
 end
 
@@ -215,7 +219,7 @@ vim.api.nvim_create_autocmd({ 'BufAdd', 'VimEnter', 'BufDelete' }, {
     bl_cache.buflist_changed[ev.event] = ev
 
     if ev.event == 'BufDelete' then
-      bl_sim:rm_buf(ev.buf)     -- Just for getting the bufnr from bl_sim
+      bl_sim:rm_buf(ev.buf) -- Just for getting the bufnr from bl_sim
 
       if ev.buf == vim.api.nvim_get_current_buf() then
         bl_cache.bufnr_jump_to = bl_sim:selbufnr()
@@ -247,9 +251,9 @@ vim.api.nvim_create_autocmd({ 'BufEnter' }, {
       return
     end
 
-    bl_sim:log('BufEnter:before selecting buf', { inspect = true })
+    kl_log:log('BufEnter:before selecting buf', '', { inspect = function() bl_sim:inspect() end })
     bl_sim:select_buf(ev.buf)
-    bl_sim:log('BufEnter:after selecting buf', { inspect = true })
+    kl_log:log('BufEnter:after selecting buf', '', { inspect = function() bl_sim:inspect() end })
   end,
 })
 
@@ -264,7 +268,7 @@ end
 -- Select the last buffer
 local function select_last_buf()
   set_cur_buf(bl_sim:last_selbufnr())
-  bl_sim:log('select last bufnr', { inspect = true })
+  kl_log:log('select last bufnr', '', { inspect = function() bl_sim:inspect() end })
 end
 
 -- Remove buffers to the left of the current buffer
@@ -275,7 +279,7 @@ local function rm_left_bufs()
   end
 
   rm_bufs(left_bufnrs)
-  bl_sim:log('delete left bufs', { inspect = true })
+  kl_log:log('delete left bufs', '', { inspect = function() bl_sim:inspect() end })
 end
 
 -- Remove buffers to the right of the current buffer
@@ -286,7 +290,7 @@ local function rm_right_bufs()
   end
 
   rm_bufs(right_bufnrs)
-  bl_sim:log('delete right bufs', { inspect = true })
+  kl_log:log('delete right bufs', '', { inspect = function() bl_sim:inspect() end })
 end
 
 -- Remove buffers other than the current buffer
@@ -297,7 +301,7 @@ local function rm_other_bufs()
   end
 
   rm_bufs(other_bufnrs)
-  bl_sim:log('delete other bufs', { inspect = true })
+  kl_log:log('delete other bufs', '', { inspect = function() bl_sim:inspect() end })
 end
 
 -- Move the buffer to the given position
@@ -307,20 +311,20 @@ local function move_buf(pos)
   vim.api.nvim__redraw({ tabline = true })
 end
 
-local function rm_buf(bufnr, force)
-  nvim_rm_buf(bufnr, force)
+local function rm_buf(bufnr, opts)
+  nvim_rm_buf(bufnr, opts)
 end
 
 -- Delete the buffer for the given tab number
-local function rm_buf_for_tab(tabnr, force)
-  rm_buf(bl_sim:get_bufnr(tabnr), force)
+local function rm_buf_for_tab(tabnr, opts)
+  rm_buf(bl_sim:get_bufnr(tabnr), opts)
 end
 
 -- Remove the current buffer
-local function rm_cur_buf(force)
-  bl_sim:log('remove cur buf:before remove', { inspect = true })
-  rm_buf(vim.api.nvim_get_current_buf(), force)
-  bl_sim:log('remove cur buf:after remove', { inspect = true })
+local function rm_cur_buf(opts)
+  kl_log:log('remove cur buf:before remove', '', { inspect = function() bl_sim:inspect() end })
+  rm_buf(vim.api.nvim_get_current_buf(), opts)
+  kl_log:log('remove cur buf:after remove', '', { inspect = function() bl_sim:inspect() end })
 end
 
 return {

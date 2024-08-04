@@ -8,6 +8,7 @@ local default_opts = {
   bufline = {
     enable = false,
   },
+  debug = false,
 }
 
 local setup_opts = {}

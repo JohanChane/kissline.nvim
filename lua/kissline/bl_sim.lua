@@ -21,23 +21,26 @@ If the external state changes, synchronize the internal state with the external 
 3.  Cycle through tabs.
 4   Move tab cycling.
 --]]
+
+local kl_log = require('kissline.log').Log:new({
+  enable = require('kissline.config').setup_opts.debug
+})
+
 BlSim = {}
 BlSim.__index = BlSim
 
-function BlSim:new(_opt)
+function BlSim:new(_opts)
   local self = setmetatable({}, BlSim)
 
-  _opt = _opt or {}
+  _opts = _opts or {}
 
   local _bufnr_list = {}
   local _bufnr_set = {}
   local _selbufnr = nil
   local _last_selbufnr = nil
-  local _is_buflist_sync = false  -- Whether the internal simulator is synchronized with the external
+  local _is_buflist_sync = false -- Whether the internal simulator is synchronized with the external
 
-  local _debug = _opt.debug
-
-  local function _inspect()
+  function self:inspect()
     print('bufnr_list:')
     print(vim.inspect(_bufnr_list))
     print('bufnr_set:')
@@ -46,32 +49,6 @@ function BlSim:new(_opt)
     print('last_selbufnr:', _last_selbufnr)
     print('seltabnr:', self:seltabnr())
     print('last_seltabnr:', self:last_selbufnr())
-  end
-
-  function self:log(title, opt, msg)
-    if not _debug then
-      return
-    end
-
-    opt = opt or {}
-
-    local info = debug.getinfo(2, 'Sln')
-    local source = info and info.source or 'unknown source'
-    local currentline = info and info.currentline or 'unknown line'
-    local name = info and info.name or 'unknown function'
-
-    local filename = source:match('^.+/(.+)$') or source
-    local timestamp = os.date('%M:%S')
-
-    print(string.format('## %s [%s:%s:%s] %s', timestamp, filename, currentline, name, title))
-    if msg then
-      print('### msg')
-      print(msg)
-    end
-    if opt.inspect then
-      print('### inspect')
-      _inspect()
-    end
   end
 
   function self:bufnr_list()
@@ -150,7 +127,7 @@ function BlSim:new(_opt)
     end
 
     -- New buffer on the right of seltab
-    local tabnr = #_bufnr_list == 0 and 1 or self:seltabnr() + 1    -- Ref: rm_tab()
+    local tabnr = #_bufnr_list == 0 and 1 or self:seltabnr() + 1 -- Ref: rm_tab()
     table.insert(_bufnr_list, tabnr, bufnr)
     _bufnr_set[bufnr] = true
 
@@ -310,7 +287,7 @@ function BlSim:new(_opt)
 
   function self:update_buflist(bufnr_list_included) -- bufnrs in bufnr_list are included
     if self:is_buflist_sync() then
-      self:log('bufnr_list have not updated', { inspect = true })
+      kl_log:log('bufnr_list have not updated', '', { inspect = function() self:inspect() end })
       return
     end
 
@@ -342,13 +319,13 @@ function BlSim:new(_opt)
     end
 
     self:set_buflist_sync(true)
-    self:log('bufnr_list have updated', { inspect = true })
+    kl_log:log('bufnr_list have updated', '', { inspect = function() self:inspect() end })
   end
 
-  function self:update_selbuf(cur_bufnr)    -- cur_bufnr is a included bufnr
+  function self:update_selbuf(cur_bufnr) -- cur_bufnr is a included bufnr
     if cur_bufnr ~= self:selbufnr() then
       _selbufnr = cur_bufnr
-      self:log('selbufnr have updated', { inspect = true })
+      kl_log:log('selbufnr have updated', '', { inspect = function() self:inspect() end })
     end
   end
 

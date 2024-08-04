@@ -70,10 +70,6 @@ local function config_bufline()
     bufline.rm_cur_buf()
   end, { noremap = true, silent = true })
 
-  vim.api.nvim_create_user_command('RmCurBuf', function(opts)
-    bufline.rm_cur_buf(opts.bang)
-  end, {bang = true})
-
   vim.keymap.set('n', '<Leader>ql', function()
     bufline.rm_left_bufs()
   end, { noremap = true, silent = true })
@@ -110,14 +106,6 @@ function M.setup(opts)
     M.bufline = require('kissline.bufline')
     config_bufline()
   end
-
-  vim.api.nvim_create_user_command(
-    'BlSimTest',
-    function(_)
-      require('kissline_test.bl_sim').test()
-    end,
-    {}
-  )
 end
 
 return M
