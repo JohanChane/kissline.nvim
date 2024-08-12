@@ -8,6 +8,9 @@ local function config_tabline()
     vim.keymap.set('n', '<M-' .. i .. '>', i .. 'gt', { noremap = true })
   end
   vim.keymap.set('n', '<Tab>', 'gt', { noremap = true })
+  -- terminal emulator sends the same sequence for <Tab> and <C-I>. See [ref](https://github.com/neovim/neovim/issues/20126#issuecomment-1296036118)
+  vim.keymap.set("n", "<C-I>", "<C-I>", { noremap = true })
+
   vim.keymap.set('n', '<S-Tab>', 'gT', { noremap = true })
   vim.keymap.set('n', '<M-0>', '<Cmd>tablast<CR>', { noremap = true, })
 
@@ -38,6 +41,9 @@ local function config_bufline()
   vim.keymap.set('n', '<Tab>', function()
     bufline.select_tab('+1')
   end, { noremap = true, silent = true })
+
+  -- terminal emulator sends the same sequence for <Tab> and <C-I>. See [ref](https://github.com/neovim/neovim/issues/20126#issuecomment-1296036118)
+  vim.keymap.set("n", "<C-I>", "<C-I>", { noremap = true })
 
   vim.keymap.set('n', '<S-Tab>', function()
     bufline.select_tab('-1')
